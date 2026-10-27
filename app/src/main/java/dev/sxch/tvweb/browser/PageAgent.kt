@@ -20,72 +20,141 @@ object PageAgent {
         })()
     """
 
-    const val TAP = """
+
+    const val SETUP = """
         (function(){
           try{
-            function tagOf(n){ return (n && n.tagName) ? n.tagName.toUpperCase() : ''; }
-            function isField(t){ return t==='INPUT'||t==='TEXTAREA'||t==='SELECT'; }
-            function clickable(n){
-              var cur = n;
-              while (cur && cur !== document.body) {
-                var t = tagOf(cur);
-                if (t==='A'||t==='BUTTON'||isField(t)||t==='LABEL'||
-                    cur.getAttribute('role')==='button'||cur.hasAttribute('onclick')||
-                    cur.hasAttribute('tabindex')) return cur;
-                cur = cur.parentElement;
-              }
-              return null;
+            if (window.__tvweb) return '1';
+            window.__tvweb = { cur: null };
+            var css = '.__tvweb-focus{' +
+              'outline:4px solid #0A84FF !important;' +
+              'outline-offset:3px !important;' +
+              'box-shadow:0 0 0 10px rgba(10,132,255,0.30) !important;' +
+              'border-radius:6px !important;' +
+              'transition:none !important;' +
+              '}';
+            function addStyle(doc){
+              if (!doc || doc.getElementById('__tvweb-style')) return;
+              var st = doc.createElement('style');
+              st.id = '__tvweb-style';
+              st.textContent = css;
+              (doc.head || doc.documentElement).appendChild(st);
             }
-            function sameOriginDoc(frame){
-              try { return frame.contentDocument; } catch (e) { return null; }
+            addStyle(document);
+            var frames = document.querySelectorAll('iframe');
+            for (var i = 0; i < frames.length; i++) {
+              try { addStyle(frames[i].contentDocument); } catch (e) {}
             }
-            function followFrames(doc, x, y, depth){
-              if (depth > 3) return { el: null, blocked: false };
-              var el = doc.elementFromPoint(Math.floor(x), Math.floor(y));
-              if (el && tagOf(el) === 'IFRAME') {
-                var inner = sameOriginDoc(el);
-                if (inner) {
-                  var r = el.getBoundingClientRect();
-                  return followFrames(inner, x - r.left, y - r.top, depth + 1);
-                }
-                return { el: el, blocked: true };
+            return '1';
+          } catch (e) { return '0'; }
+        })()
+    """
+
+    fun nav(dx: Int, dy: Int): String = """
+        (function(dx, dy){
+          try{
+            if (!window.__tvweb) return 'scroll';
+            var SEL = 'a[href],button,input,select,textarea,video,summary,label,' +
+                      '[role=button],[role=link],[role=option],[onclick],[tabindex]';
+            var nodes = [];
+            function harvest(doc){
+              if (!doc) return;
+              var found = doc.querySelectorAll(SEL);
+              for (var i = 0; i < found.length; i++) nodes.push(found[i]);
+              var frames = doc.querySelectorAll('iframe');
+              for (var j = 0; j < frames.length; j++) {
+                try { harvest(frames[j].contentDocument); } catch (e) {}
               }
-              return { el: el, blocked: false };
+            }
+            harvest(document);
+
+            var visible = [];
+            for (var k = 0; k < nodes.length; k++) {
+              var n = nodes[k];
+              var r = n.getBoundingClientRect();
+              if (r.width < 6 || r.height < 6) continue;
+              var st = window.getComputedStyle(n);
+              if (st.visibility === 'hidden' || st.display === 'none') continue;
+              if (parseFloat(st.opacity || '1') < 0.05) continue;
+              visible.push({ el: n, r: r });
+            }
+            if (!visible.length) return 'scroll';
+
+            function setCurrent(entry){
+              if (window.__tvweb.cur && window.__tvweb.cur !== entry.el) {
+                window.__tvweb.cur.classList.remove('__tvweb-focus');
+              }
+              window.__tvweb.cur = entry.el;
+              entry.el.classList.add('__tvweb-focus');
+              try { entry.el.scrollIntoView({ block: 'center', inline: 'center' }); } catch (e) {}
             }
 
-            var active = document.activeElement;
-            var activeTag = tagOf(active);
-            if (isField(activeTag)) {
-              if (activeTag === 'SELECT') { active.focus(); return 'type'; }
-              var type = (active.type || '').toLowerCase();
-              if (activeTag === 'INPUT' &&
-                  /checkbox|radio|button|submit|reset|range|color|file/.test(type)) {
-                active.click();
-                return 'click-focused';
-              }
-              if (active.form && active.form.requestSubmit) { active.form.requestSubmit(); return 'submit'; }
-              active.focus();
-              return 'type';
-            }
-            var focusedTarget = clickable(active);
-            if (focusedTarget && active !== document.body && active !== document.documentElement) {
-              focusedTarget.click();
-              return 'click-focused';
+            var cur = null;
+            for (var m = 0; m < visible.length; m++) {
+              if (visible[m].el === window.__tvweb.cur) { cur = visible[m]; break; }
             }
 
-            var found = followFrames(
-              document,
+            if (!cur) {
+              var cx = window.innerWidth / 2, cy = window.innerHeight / 2, best = null, bd = 1e12;
+              for (var p = 0; p < visible.length; p++) {
+                var rr = visible[p].r;
+                var d = Math.hypot(rr.left + rr.width/2 - cx, rr.top + rr.height/2 - cy);
+                if (d < bd) { bd = d; best = visible[p]; }
+              }
+              if (best) setCurrent(best);
+              return '1';
+            }
+
+            var cr = cur.r, bestE = null, bestScore = 1e12;
+            for (var q = 0; q < visible.length; q++) {
+              var c = visible[q];
+              if (c.el === cur.el) continue;
+              var a = c.r;
+              var ax = a.left + a.width/2, ay = a.top + a.height/2;
+              var bx = cr.left + cr.width/2, by = cr.top + cr.height/2;
+              var ddx = ax - bx, ddy = ay - by;
+              var primary, secondary;
+              if (dx > 0) { if (ddx < 8) continue; primary = ddx; secondary = Math.max(0, Math.abs(ddy) - (cr.height + a.height)/2); }
+              else if (dx < 0) { if (ddx > -8) continue; primary = -ddx; secondary = Math.max(0, Math.abs(ddy) - (cr.height + a.height)/2); }
+              else if (dy > 0) { if (ddy < 8) continue; primary = ddy; secondary = Math.max(0, Math.abs(ddx) - (cr.width + a.width)/2); }
+              else if (dy < 0) { if (ddy > -8) continue; primary = -ddy; secondary = Math.max(0, Math.abs(ddx) - (cr.width + a.width)/2); }
+              else { continue; }
+              var score = primary + secondary * 2.5;
+              if (score < bestScore) { bestScore = score; bestE = c; }
+            }
+
+            if (bestE) { setCurrent(bestE); return '1'; }
+            return 'scroll';
+          } catch (e) { return 'scroll'; }
+        })($dx, $dy)
+    """
+
+    const val ACTIVATE = """
+        (function(){
+          try{
+            var el = window.__tvweb && window.__tvweb.cur;
+            if (el && document.contains(el)) {
+              var tag = (el.tagName || '').toUpperCase();
+              var type = (el.type || '').toLowerCase();
+              if (tag === 'VIDEO') {
+                if (el.paused) { el.play(); } else { el.pause(); }
+                return 'video';
+              }
+              if (tag === 'SELECT' || tag === 'TEXTAREA') { el.focus(); return 'focus'; }
+              if (tag === 'INPUT') {
+                if (/checkbox|radio|button|submit|reset|image/.test(type)) { el.click(); return 'click'; }
+                el.focus();
+                return 'focus';
+              }
+              el.click();
+              return 'click';
+            }
+            var c = document.elementFromPoint(
               Math.floor(window.innerWidth / 2),
-              Math.floor(window.innerHeight / 2),
-              0
+              Math.floor(window.innerHeight / 2)
             );
-            if (found.blocked) return 'native-frame';
-            var target = clickable(found.el) || found.el;
-            if (!target) return 'none';
-            var targetTag = tagOf(target);
-            if (isField(targetTag)) { target.focus(); return 'type'; }
-            target.click();
-            return 'click-center';
+            if (c) { c.click(); return 'click'; }
+            return 'none';
           } catch (e) { return 'error'; }
         })()
     """

@@ -9,9 +9,10 @@ ads. This one assumes a D-pad and nothing else.
 ## What a person notices
 
 - The start page is five tiles and four buttons. Everything is reachable with the arrow keys.
-- Arrow keys scroll the page. The toolbar is one press of `MENU` away and `BACK` returns to it.
-- `OK` taps the middle of the screen, or submits the field you are typing in, or clicks the element
-  the page has focused.
+- A blue ring marks the element you are on. Arrows move it, and the page scrolls to keep it in view.
+  `OK` presses it. That is the whole interaction model, so you always see what you are about to hit.
+- When nothing lies in the direction you pressed, the ring passes the key back and the page scrolls.
+- The toolbar is one press of `MENU` away and `BACK` returns to it.
 - A video in the page turns on a `Watch` button that hides the toolbar and fills the screen.
 - Ads and trackers are dropped before they load, so pages are lighter than in Chrome on the same box.
 - Streaming services that need DRM say so in plain words and offer to open the installed TV app
@@ -99,14 +100,35 @@ cd tools/testpage && python3 -m http.server 8099
 | `innerframe.html` inside `frame.html` | a same-origin iframe button receives the centre tap |
 | `inner.html` | arrows scroll an inner `overflow:auto` container, not just the window |
 
+## Design
+
+The interface follows the tvOS guidance: design on a 1920x1080 canvas, keep content clear of the
+outer 90px at the sides and 60px top and bottom, and make focus impossible to miss.
+
+- Every control has one of three states. Idle is a soft dark surface, focused grows toward the viewer
+  and gains a white rim or inverts to white with a dark label, and disabled is dimmed.
+- The start page uses tiles at 104dp with 16dp gutters, wide enough that a focused tile growing by
+  7 percent never touches its neighbour.
+- The toolbar is a translucent black band with icon buttons and one address capsule.
+- Panels are frosted cards with 24dp corners, a large title, and full-width rows that invert when
+  focused.
+- Icons are vector drawables in `res/drawable`, 19 of them, tinted at use so one file serves every
+  focus state.
+
+The page-level focus ring is injected CSS. On load the script collects every link, button, input,
+select, textarea, video and tabindex element, including inside same-origin frames, picks the one
+nearest the viewport centre, and rings it. Each arrow key asks the page for the best candidate in that
+direction using the element rectangles. If the page reports none, the key falls back to scrolling.
+
 ## Layout
 
 ```
 app/src/main/java/dev/sxch/tvweb/
   MainActivity.kt          surfaces (home, browser, panel), key routing, panel contents
   browser/BrowserSession.kt  tab ownership, one WebView per tab, ad block interception
-  browser/TvWebView.kt     key model: arrows scroll, OK taps, MENU and BACK escape
-  browser/PageAgent.kt     injected JS: page probe, tap, video fullscreen, cosmetic filters
+  browser/TvWebView.kt     key model: arrows move the ring, OK presses, MENU and BACK escape
+  browser/PageAgent.kt     injected JS: probe, focus ring and spatial navigation, activate,
+                           video fullscreen, cosmetic filters
   browser/Blocklist.kt     sorted host list, binary search on the host and its parent domains
   browser/Downloader.kt    DownloadManager wiring and filename parsing
   browser/DrmSites.kt      host to TV app mapping for the DRM handoff
@@ -114,6 +136,10 @@ app/src/main/java/dev/sxch/tvweb/
   data/Store.kt            SQLite for history, bookmarks, shortcuts
   data/Prefs.kt            typed settings over SharedPreferences
   ui/                      custom views, all focusable, no XML layouts
+    TvButton.kt            capsule that inverts to white when focused
+    TvCard.kt              content tile that lifts on focus
+    PanelView.kt           frosted sheet with invert-on-focus rows
+
 ```
 
 The data shape that keeps this small: one `Surface` state machine (`Home`, `Browser`, `Panel(kind)`)
@@ -127,7 +153,9 @@ hosts file, matched by suffix walk so subdomains are covered.
 
 - DRM video does not play in a system WebView. The app detects the big streaming hosts and hands off.
   Anything not in `DrmSites` map fails silently with a blank player.
-- Taps land at the centre of the screen. A page whose only control is in a corner needs a scroll first.
+- The focus ring only sees elements the page exposes. Canvas and WebGL interfaces, and anything
+  inside a cross-origin frame, cannot be reached, and those pages fall back to centre taps.
+- A page that draws its own cursor or hijacks arrow keys will fight the ring.
 - Text entry uses the system on-screen keyboard. Voice search needs a recogniser the TV may not ship.
 - Installed as a sideload with a debug key, so it cannot be updated by the Play Store and will not
   update in place once signed with a real key.

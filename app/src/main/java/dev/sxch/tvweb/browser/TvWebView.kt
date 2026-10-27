@@ -73,10 +73,22 @@ class TvWebView @JvmOverloads constructor(
         evaluateJavascript(PageAgent.scrollBy(delta), null)
     }
 
-    private fun tap(event: KeyEvent) {
-        evaluateJavascript(PageAgent.TAP) { raw ->
-            if (unquote(raw ?: "") == "native-frame") {
-                super.dispatchKeyEvent(event)
+    fun armPageFocus() {
+        evaluateJavascript(PageAgent.SETUP, null)
+        evaluateJavascript(PageAgent.nav(0, 0), null)
+    }
+
+    private fun activate() {
+        evaluateJavascript(PageAgent.ACTIVATE, null)
+    }
+
+    private fun navigate(dx: Int, dy: Int) {
+        evaluateJavascript(PageAgent.nav(dx, dy)) { raw ->
+            if (unquote(raw ?: "") != "scroll") return@evaluateJavascript
+            val step = (resources.displayMetrics.density * 190).toInt()
+            when {
+                dy > 0 -> scrollPage(step)
+                dy < 0 -> scrollPage(-step)
             }
         }
     }
@@ -97,28 +109,24 @@ class TvWebView @JvmOverloads constructor(
                 }
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
                     if (!pageHandlesConfirmNatively()) {
-                        if (event.repeatCount == 0) tap(event)
+                        if (event.repeatCount == 0) activate()
                         return true
                     }
                 }
             }
             if (!pageOwnsKeys) {
-                val step = (resources.displayMetrics.density * 240).toInt()
+                val pageStep = (resources.displayMetrics.density * 190).toInt()
                 when (event.keyCode) {
-                    KeyEvent.KEYCODE_DPAD_DOWN -> {
-                        scrollPage(step)
-                        return true
-                    }
-                    KeyEvent.KEYCODE_DPAD_UP -> {
-                        scrollPage(-step)
-                        return true
-                    }
+                    KeyEvent.KEYCODE_DPAD_DOWN -> { navigate(0, 1); return true }
+                    KeyEvent.KEYCODE_DPAD_UP -> { navigate(0, -1); return true }
+                    KeyEvent.KEYCODE_DPAD_LEFT -> { navigate(-1, 0); return true }
+                    KeyEvent.KEYCODE_DPAD_RIGHT -> { navigate(1, 0); return true }
                     KeyEvent.KEYCODE_CHANNEL_UP, KeyEvent.KEYCODE_PAGE_UP -> {
-                        scrollPage(-step * 3)
+                        scrollPage(-pageStep * 3)
                         return true
                     }
                     KeyEvent.KEYCODE_CHANNEL_DOWN, KeyEvent.KEYCODE_PAGE_DOWN -> {
-                        scrollPage(step * 3)
+                        scrollPage(pageStep * 3)
                         return true
                     }
                 }

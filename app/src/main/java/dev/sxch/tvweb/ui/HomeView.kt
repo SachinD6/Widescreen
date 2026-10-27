@@ -2,10 +2,10 @@ package dev.sxch.tvweb.ui
 
 import android.content.Context
 import android.view.Gravity
-import android.view.View
 import android.widget.GridLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.view.View
 import dev.sxch.tvweb.R
 import dev.sxch.tvweb.data.Shortcut
 
@@ -21,110 +21,110 @@ class HomeView(context: Context) : LinearLayout(context) {
     private val grid = GridLayout(context).apply {
         columnCount = COLUMNS
         alignmentMode = GridLayout.ALIGN_BOUNDS
+        clipChildren = false
+        clipToPadding = false
     }
+    private val tabsButton = TvButton(context, R.drawable.ic_tabs, "Tabs")
     private val actionRow = LinearLayout(context).apply {
         orientation = HORIZONTAL
         gravity = Gravity.START or Gravity.CENTER_VERTICAL
+        clipChildren = false
+        clipToPadding = false
     }
-    private val tabsChip = Chip(context, "Tabs")
 
     init {
         orientation = VERTICAL
-        setPadding(Ui.dp(context, 56f), Ui.dp(context, 40f), Ui.dp(context, 56f), Ui.dp(context, 36f))
+        clipChildren = false
+        clipToPadding = false
+        setPadding(Ui.dp(context, 48f), Ui.dp(context, 30f), Ui.dp(context, 48f), Ui.dp(context, 26f))
 
-        val header = TextView(context).apply {
-            styleText(38f)
-            setTextColor(Ui.solidText(context, R.color.accent))
-            text = "TV Web"
+        val eyebrow = TextView(context).apply {
+            styleText(12f, R.color.accent)
+            text = "START PAGE"
+            letterSpacing = 0.18f
         }
-        val tagline = TextView(context).apply {
-            styleText(15f, R.color.text_dim)
-            text = "D-pad browsing, no ads, no clutter"
-            setPadding(0, Ui.dp(context, 6f), 0, Ui.dp(context, 28f))
+        val title = TextView(context).apply {
+            styleText(40f)
+            text = "Browse"
+            setPadding(0, Ui.dp(context, 8f), 0, Ui.dp(context, 26f))
         }
 
-        addView(header, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
-        addView(tagline, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        addView(eyebrow, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        addView(title, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         addView(grid, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         addView(View(context), LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
 
-        actionRow.addView(chip("Search", onClick = { onSearch?.invoke() }))
-        tabsChip.setOnClickListener { onTabs?.invoke() }
-        actionRow.addView(tabsChip, chipParams())
-        actionRow.addView(chip("Bookmarks", onClick = { onBookmarks?.invoke() }))
-        actionRow.addView(chip("Settings", onClick = { onSettings?.invoke() }))
+        actionRow.addView(
+            TvButton(context, R.drawable.ic_search, "Search").apply {
+                setOnClickListener { onSearch?.invoke() }
+            },
+            actionParams(),
+        )
+        tabsButton.setOnClickListener { onTabs?.invoke() }
+        actionRow.addView(tabsButton, actionParams())
+        actionRow.addView(
+            TvButton(context, R.drawable.ic_bookmark, "Bookmarks").apply {
+                setOnClickListener { onBookmarks?.invoke() }
+            },
+            actionParams(),
+        )
+        actionRow.addView(
+            TvButton(context, R.drawable.ic_sliders, "Settings").apply {
+                setOnClickListener { onSettings?.invoke() }
+            },
+            LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT),
+        )
         addView(actionRow, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
     }
 
     fun render(shortcuts: List<Shortcut>, tabCount: Int) {
-        tabsChip.text = if (tabCount > 1) "Tabs ($tabCount)" else "Tabs"
+        updateTabCount(tabCount)
         grid.removeAllViews()
         shortcuts.forEachIndexed { index, shortcut ->
-            val card = shortcutCard(shortcut)
+            val host = shortcut.url
+                .removePrefix("https://")
+                .removePrefix("http://")
+                .removePrefix("www.")
+                .trimEnd('/')
+                .substringBefore('/')
+
+            val card = TvCard(
+                context,
+                Ui.glyphForHost(host),
+                shortcut.title,
+            ) { onNavigate?.invoke(shortcut.url) }
+            card.setOnLongClickListener {
+                onRemoveShortcut?.invoke(shortcut)
+                true
+            }
+
             val params = GridLayout.LayoutParams(
                 GridLayout.spec(index / COLUMNS),
                 GridLayout.spec(index % COLUMNS, 1f),
             ).apply {
                 width = 0
-                height = Ui.dp(context, 96f)
-                setMargins(0, 0, Ui.dp(context, 14f), Ui.dp(context, 14f))
+                height = Ui.dp(context, 104f)
+                setMargins(Ui.dp(context, 8f), Ui.dp(context, 8f), Ui.dp(context, 8f), Ui.dp(context, 8f))
             }
             grid.addView(card, params)
         }
     }
 
     fun updateTabCount(tabCount: Int) {
-        tabsChip.text = if (tabCount > 1) "Tabs ($tabCount)" else "Tabs"
+        tabsButton.setLabel(if (tabCount > 1) "Tabs $tabCount" else "Tabs")
     }
 
     fun focusDefault() {
-        val firstCard = (0 until grid.childCount).map { grid.getChildAt(it) }.firstOrNull { it.isFocusable }
-        (firstCard ?: tabsChip).requestFocus()
+        val first = (0 until grid.childCount)
+            .map { grid.getChildAt(it) }
+            .firstOrNull { it.isFocusable }
+        (first ?: actionRow.getChildAt(0))?.requestFocus()
     }
 
-    private fun shortcutCard(shortcut: Shortcut): View {
-        val card = LinearLayout(context).apply {
-            orientation = VERTICAL
-            gravity = Gravity.CENTER_VERTICAL
-            background = Ui.cardBackground(context)
-            setPadding(Ui.dp(context, 20f), Ui.dp(context, 16f), Ui.dp(context, 20f), Ui.dp(context, 16f))
-            isFocusable = true
-            isFocusableInTouchMode = true
-            setOnClickListener { onNavigate?.invoke(shortcut.url) }
-            setOnLongClickListener {
-                onRemoveShortcut?.invoke(shortcut)
-                true
-            }
+    private fun actionParams(): LayoutParams =
+        LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
+            rightMargin = Ui.dp(context, 12f)
         }
-        val name = TextView(context).apply {
-            styleText(21f)
-            setTextColor(Ui.brightText(context))
-            text = shortcut.title
-            maxLines = 1
-        }
-        val host = TextView(context).apply {
-            styleText(12f, R.color.text_dim)
-            text = shortcut.url.removePrefix("https://").removePrefix("http://").removePrefix("www.")
-                .trimEnd('/')
-                .take(38)
-            maxLines = 1
-            setPadding(0, Ui.dp(context, 6f), 0, 0)
-        }
-        card.addView(name, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
-        card.addView(host, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
-        return card
-    }
-
-    private fun chip(label: String, onClick: () -> Unit): Chip =
-        Chip(context, label).apply {
-            setOnClickListener { onClick() }
-            layoutParams = chipParams()
-        }
-
-    private fun chipParams(): LayoutParams = LayoutParams(
-        LayoutParams.WRAP_CONTENT,
-        LayoutParams.WRAP_CONTENT,
-    ).apply { rightMargin = Ui.dp(context, 12f) }
 
     private companion object {
         const val COLUMNS = 4

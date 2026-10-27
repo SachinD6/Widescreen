@@ -4,16 +4,18 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
-import android.graphics.drawable.StateListDrawable
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.View
+import android.view.animation.DecelerateInterpolator
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import dev.sxch.tvweb.R
 
-fun TextView.styleText(sizeSp: Float, textRes: Int = R.color.text) {
+fun TextView.styleText(sizeSp: Float, colorRes: Int = R.color.text) {
     setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp)
-    setTextColor(Ui.solidText(context, textRes))
+    setTextColor(ContextCompat.getColor(context, colorRes))
     includeFontPadding = false
     gravity = Gravity.CENTER_VERTICAL
 }
@@ -26,55 +28,53 @@ object Ui {
 
     fun color(context: Context, res: Int): Int = ContextCompat.getColor(context, res)
 
-    fun cardBackground(context: Context, radius: Float = 10f): Drawable {
-        val r = dp(context, radius).toFloat()
-        val normal = GradientDrawable().apply {
-            cornerRadius = r
-            setColor(color(context, R.color.surface))
-            setStroke(dp(context, 1f), color(context, R.color.stroke))
+    fun rounded(context: Context, colorRes: Int, radiusDp: Float, alpha: Int = 255): GradientDrawable =
+        GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(context, radiusDp).toFloat()
+            setColor(color(context, colorRes))
+            this.alpha = alpha
         }
-        val focused = GradientDrawable().apply {
-            cornerRadius = r
-            setColor(color(context, R.color.surface_focused))
-            setStroke(dp(context, 3f), color(context, R.color.accent))
-        }
-        return StateListDrawable().apply {
-            addState(intArrayOf(android.R.attr.state_focused), focused)
-            addState(intArrayOf(), normal)
+
+    /**
+     * Apple TV focus treat: the item grows toward the viewer and picks up a shadow.
+     * Parents must set clipChildren=false so the growth is not cut off.
+     */
+    fun focusLift(view: View, scale: Float = 1.06f, liftDp: Float = 10f) {
+        view.setOnFocusChangeListener { v, hasFocus ->
+            val target = if (hasFocus) scale else 1f
+            v.animate()
+                .scaleX(target)
+                .scaleY(target)
+                .setDuration(150)
+                .setInterpolator(DecelerateInterpolator())
+                .start()
+            v.stateListAnimator = null
+            v.elevation = if (hasFocus) dp(v.context, liftDp).toFloat() else 0f
         }
     }
 
-    fun accentBackground(context: Context, radius: Float = 8f): Drawable {
-        val r = dp(context, radius).toFloat()
-        val normal = GradientDrawable().apply {
-            cornerRadius = r
-            setColor(color(context, R.color.accent))
-        }
-        val focused = GradientDrawable().apply {
-            cornerRadius = r
-            setColor(color(context, R.color.text))
-            setStroke(dp(context, 3f), color(context, R.color.accent))
-        }
-        return StateListDrawable().apply {
-            addState(intArrayOf(android.R.attr.state_focused), focused)
-            addState(intArrayOf(), normal)
-        }
+    fun iconView(
+        context: Context,
+        iconRes: Int,
+        sizeDp: Float = 24f,
+        tintRes: Int = R.color.text,
+    ): ImageView = ImageView(context).apply {
+        setImageResource(iconRes)
+        imageTintList = ColorStateList.valueOf(color(context, tintRes))
+        scaleType = ImageView.ScaleType.FIT_CENTER
     }
 
-    fun brightText(context: Context): ColorStateList = ColorStateList(
-        arrayOf(
-            intArrayOf(android.R.attr.state_focused),
-            intArrayOf(android.R.attr.state_selected),
-            intArrayOf(),
-        ),
-        intArrayOf(
-            color(context, R.color.text),
-            color(context, R.color.accent),
-            color(context, R.color.text_dim),
-        ),
-    )
+    fun iconDrawable(context: Context, iconRes: Int, tintRes: Int = R.color.text): Drawable? =
+        ContextCompat.getDrawable(context, iconRes)?.mutate()?.apply {
+            setTint(color(context, tintRes))
+        }
 
-    fun solidText(context: Context, res: Int = R.color.text): ColorStateList =
-        ColorStateList.valueOf(color(context, res))
-
+    fun glyphForHost(host: String): Int = when {
+        host.contains("youtube") || host.contains("twitch") || host.contains("vimeo") -> R.drawable.ic_play
+        host.contains("wiki") || host.contains("medium") || host.contains("substack") -> R.drawable.ic_book
+        host.contains("reddit") || host.contains("forum") || host.contains("news") -> R.drawable.ic_chat
+        host.contains("archive") || host.contains("github") || host.contains("gitlab") -> R.drawable.ic_archive
+        else -> R.drawable.ic_globe
+    }
 }

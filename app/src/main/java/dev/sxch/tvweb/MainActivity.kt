@@ -208,7 +208,7 @@ class MainActivity : Activity(), BrowserHost {
                     session.activeView()?.requestFocus()
                 } else {
                     chrome.visibility = View.VISIBLE
-                    chrome.requestFocus()
+                    (session.activeView() ?: chrome).requestFocus()
                 }
             }
             is Surface.Panel -> openPanel(next.kind)
@@ -270,16 +270,17 @@ class MainActivity : Activity(), BrowserHost {
 
     private fun buildMenuPanel(): PanelView {
         val tab = session.activeTab()
-        val panel = PanelView(this, "Actions").subtitle("MENU opens this list anywhere in the page")
-        panel.addRow("Search or enter address", "") { openPanel(PanelKind.INPUT) }
-        panel.addRow("Home", if (prefs.settings.homepage.isBlank()) "Start page" else hostOf(prefs.settings.homepage)) {
+        val panel = PanelView(this, "Actions", fillsHeight = true).subtitle("MENU opens this list anywhere in the page")
+        panel.addRow(R.drawable.ic_search, "Search or enter address", "") { openPanel(PanelKind.INPUT) }
+        panel.addRow(R.drawable.ic_home, "Home", if (prefs.settings.homepage.isBlank()) "Start page" else hostOf(prefs.settings.homepage)) {
             closePanel()
             openHome()
         }
-        if (tab?.canGoBack == true) panel.addRow("Back", "History") { closePanel(); navigateBack() }
-        if (tab?.canGoForward == true) panel.addRow("Forward", "") { closePanel(); session.goForward() }
-        panel.addRow("Reload", "") { closePanel(); session.reload() }
+        if (tab?.canGoBack == true) panel.addRow(R.drawable.ic_back, "Back", "History") { closePanel(); navigateBack() }
+        if (tab?.canGoForward == true) panel.addRow(R.drawable.ic_forward, "Forward", "") { closePanel(); session.goForward() }
+        panel.addRow(R.drawable.ic_reload, "Reload", "") { closePanel(); session.reload() }
         panel.addRow(
+            R.drawable.ic_play,
             "Watch fullscreen",
             if (lastPageState.hasVideo) "Video found" else "No video found",
         ) {
@@ -289,6 +290,7 @@ class MainActivity : Activity(), BrowserHost {
         val url = tab?.url ?: ""
         val bookmarked = url.isNotBlank() && store.isBookmarked(url)
         panel.addRow(
+            R.drawable.ic_bookmark,
             if (bookmarked) "Remove bookmark" else "Bookmark this page",
             "",
         ) {
@@ -296,37 +298,37 @@ class MainActivity : Activity(), BrowserHost {
             toast(if (bookmarked) "Bookmark removed" else "Bookmarked")
             closePanel()
         }
-        panel.addRow("Add site to start page", "") {
+        panel.addRow(R.drawable.ic_external, "Add site to start page", "") {
             if (url.isNotBlank()) {
                 store.addShortcut(tab?.title?.ifBlank { url } ?: url, url)
                 toast("Added to start page")
             }
             closePanel()
         }
-        panel.addRow("New tab", "Opens a blank tab") {
+        panel.addRow(R.drawable.ic_plus, "New tab", "Opens a blank tab") {
             session.openTab("about:blank")
             lastPageState = PageState()
             closePanel()
             showSurface(Surface.Browser)
             openInput("")
         }
-        panel.addRow("Close tab", "Leaves the others open") {
+        panel.addRow(R.drawable.ic_close, "Close tab", "Leaves the others open") {
             closePanel()
             session.closeActive()
             lastPageState = PageState()
             if (session.tabCount == 0) showSurface(Surface.Home) else showSurface(Surface.Browser)
         }
-        panel.addRow("Tabs", "${session.tabCount} open") { showPanel(PanelKind.TABS) }
-        panel.addRow("History", "") { showPanel(PanelKind.HISTORY) }
-        panel.addRow("Settings", "") { showPanel(PanelKind.SETTINGS) }
+        panel.addRow(R.drawable.ic_tabs, "Tabs", "${session.tabCount} open") { showPanel(PanelKind.TABS) }
+        panel.addRow(R.drawable.ic_history, "History", "") { showPanel(PanelKind.HISTORY) }
+        panel.addRow(R.drawable.ic_sliders, "Settings", "") { showPanel(PanelKind.SETTINGS) }
         return panel
     }
 
     private fun buildTabsPanel(): PanelView {
-        val panel = PanelView(this, "Tabs").subtitle("OK switches tab. Hold OK to close.")
+        val panel = PanelView(this, "Tabs", fillsHeight = true).subtitle("OK switches tab. Hold OK to close.")
         val tabs = session.snapshot()
         if (tabs.isEmpty()) {
-            panel.addRow("No tabs open", "") {
+            panel.addRow(R.drawable.ic_tabs, "No tabs open", "") {
                 closePanel()
                 openInput("")
             }
@@ -334,6 +336,7 @@ class MainActivity : Activity(), BrowserHost {
         }
         tabs.forEach { tab ->
             val row = panel.addRow(
+                R.drawable.ic_tabs,
                 tab.title.ifBlank { tab.url.ifBlank { "New tab" } }.take(60),
                 if (tab.id == session.activeTab()?.id) "Active" else hostOf(tab.url),
             ) {
@@ -352,7 +355,7 @@ class MainActivity : Activity(), BrowserHost {
                 true
             }
         }
-        panel.addRow("New tab", "") {
+        panel.addRow(R.drawable.ic_plus, "New tab", "") {
             closePanel()
             openInput("")
         }
@@ -360,17 +363,17 @@ class MainActivity : Activity(), BrowserHost {
     }
 
     private fun buildBookmarksPanel(): PanelView {
-        val panel = PanelView(this, "Bookmarks").subtitle("Hold OK to remove a bookmark")
+        val panel = PanelView(this, "Bookmarks", fillsHeight = true).subtitle("Hold OK to remove a bookmark")
         val bookmarks = store.bookmarks()
         if (bookmarks.isEmpty()) {
-            panel.addRow("No bookmarks yet", "") {
+            panel.addRow(R.drawable.ic_bookmark, "No bookmarks yet", "") {
                 closePanel()
                 showPanel(PanelKind.MENU)
             }
             return panel
         }
         bookmarks.forEach { bookmark ->
-            val row = panel.addRow(bookmark.title.take(60), hostOf(bookmark.url)) {
+            val row = panel.addRow(R.drawable.ic_bookmark, bookmark.title.take(60), hostOf(bookmark.url)) {
                 closePanel()
                 navigate(bookmark.url)
             }
@@ -385,57 +388,57 @@ class MainActivity : Activity(), BrowserHost {
 
     private fun buildSettingsPanel(): PanelView {
         val current = prefs.settings
-        val panel = PanelView(this, "Settings").subtitle("OK changes a value")
-        panel.addRow("Search engine", current.searchEngine.label) {
+        val panel = PanelView(this, "Settings", fillsHeight = true).subtitle("OK changes a value")
+        panel.addRow(R.drawable.ic_search, "Search engine", current.searchEngine.label) {
             val next = nextEnum(current.searchEngine, SearchEngine.entries)
             prefs.update { it.copy(searchEngine = next) }
             openPanel(PanelKind.SETTINGS)
         }
-        panel.addRow("Browser identity", current.userAgent.label) {
+        panel.addRow(R.drawable.ic_globe, "Browser identity", current.userAgent.label) {
             val next = nextEnum(current.userAgent, UserAgentMode.entries)
             prefs.update { it.copy(userAgent = next) }
             toast("Reload the page to apply")
             openPanel(PanelKind.SETTINGS)
         }
-        panel.addRow("Block ads", if (current.blockAds) "On" else "Off") {
+        panel.addRow(R.drawable.ic_shield, "Block ads", if (current.blockAds) "On" else "Off") {
             prefs.update { it.copy(blockAds = !current.blockAds) }
             openPanel(PanelKind.SETTINGS)
         }
-        panel.addRow("Save history", if (current.saveHistory) "On" else "Off") {
+        panel.addRow(R.drawable.ic_history, "Save history", if (current.saveHistory) "On" else "Off") {
             prefs.update { it.copy(saveHistory = !current.saveHistory) }
             openPanel(PanelKind.SETTINGS)
         }
-        panel.addRow("Homepage", current.homepage.ifBlank { "Start page" }.take(40)) {
+        panel.addRow(R.drawable.ic_home, "Homepage", current.homepage.ifBlank { "Start page" }.take(40)) {
             val url = session.activeTab()?.url ?: return@addRow
             prefs.update { it.copy(homepage = url) }
             toast("Homepage set")
             openPanel(PanelKind.SETTINGS)
         }
         if (current.homepage.isNotBlank()) {
-            panel.addRow("Clear homepage", "Back to the start page") {
+            panel.addRow(R.drawable.ic_close, "Clear homepage", "Back to the start page") {
                 prefs.update { it.copy(homepage = "") }
                 openPanel(PanelKind.SETTINGS)
             }
         }
-        panel.addRow("Clear history", "Cannot be undone") {
+        panel.addRow(R.drawable.ic_close, "Clear history", "Cannot be undone") {
             store.clearHistory()
             toast("History cleared")
             openPanel(PanelKind.SETTINGS)
         }
-        panel.addRow("Ad block list", "${blocklist.size} hosts") { }
-        panel.addRow("Version", BuildConfig.VERSION_NAME) { }
+        panel.addRow(R.drawable.ic_shield, "Ad block list", "${blocklist.size} hosts") { }
+        panel.addRow(R.drawable.ic_globe, "Version", BuildConfig.VERSION_NAME) { }
         return panel
     }
 
     private fun buildHistoryPanel(): PanelView {
-        val panel = PanelView(this, "History").subtitle("Most recent first. Hold OK to remove an entry.")
+        val panel = PanelView(this, "History", fillsHeight = true).subtitle("Most recent first. Hold OK to remove an entry.")
         val entries = store.history(80)
         if (entries.isEmpty()) {
-            panel.addRow("No history yet", "") { closePanel() }
+            panel.addRow(R.drawable.ic_history, "No history yet", "") { closePanel() }
             return panel
         }
         entries.forEach { entry ->
-            val row = panel.addRow(entry.title.ifBlank { hostOf(entry.url) }.take(60), hostOf(entry.url)) {
+            val row = panel.addRow(R.drawable.ic_history, entry.title.ifBlank { hostOf(entry.url) }.take(60), hostOf(entry.url)) {
                 closePanel()
                 navigate(entry.url)
             }
@@ -459,6 +462,7 @@ class MainActivity : Activity(), BrowserHost {
             )
         if (app != null) {
             panel.addRow(
+                R.drawable.ic_external,
                 if (installed) "Open ${app.label}" else "${app.label} app not found",
                 if (installed) "Installed" else "Install it from the TV store",
             ) {
@@ -473,7 +477,7 @@ class MainActivity : Activity(), BrowserHost {
                 }
             }
         }
-        panel.addRow("Continue in the browser anyway", "") { closePanel() }
+        panel.addRow(R.drawable.ic_external, "Continue in the browser anyway", "") { closePanel() }
         return panel
     }
 
@@ -481,12 +485,12 @@ class MainActivity : Activity(), BrowserHost {
         val pending = pendingDownload
         val panel = PanelView(this, "Download file")
             .subtitle(pending?.name ?: "This file will be saved to your Downloads folder")
-        panel.addRow("Start download", "") {
+        panel.addRow(R.drawable.ic_download, "Start download", "") {
             val current = pendingDownload
             closePanel()
             if (current != null) startDownload(current)
         }
-        panel.addRow("Cancel", "") { closePanel() }
+        panel.addRow(R.drawable.ic_close, "Cancel", "") { closePanel() }
         return panel
     }
 
@@ -592,7 +596,7 @@ class MainActivity : Activity(), BrowserHost {
                 if (lastPageState.hasVideo) append("   Video ready")
                 append("   ")
             }
-            append("MENU for actions")
+            append("Arrows move the ring, OK selects, MENU opens actions")
         }
         chrome.render(
             url = tab?.url ?: "",
@@ -740,6 +744,7 @@ class MainActivity : Activity(), BrowserHost {
 
     override fun onVisit(url: String, title: String) {
         if (prefs.settings.saveHistory) store.recordVisit(url, title)
+        session.activeView()?.armPageFocus()
     }
 
     override fun onBlocked(host: String) {
