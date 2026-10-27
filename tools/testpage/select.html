@@ -1,0 +1,8 @@
+<!doctype html><meta charset="utf-8">
+<style>html,body{margin:0;height:100%;background:#111;color:#eee;font:28px system-ui}
+body{display:flex;align-items:center;justify-content:center;gap:24px}
+select{font-size:32px;padding:16px}</style>
+<select id="s"><option>alpha</option><option>beta</option><option>gamma</option></select>
+<div id="out">no selection</div>
+<script>var s=document.getElementById('s');
+s.addEventListener('change',function(){document.getElementById('out').textContent='picked '+s.value});</script>

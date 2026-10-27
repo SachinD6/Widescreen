@@ -1,0 +1,17 @@
+# Build output
+build/
+/app/build/
+.gradle/
+.kotlin/
+captures/
+
+# Local machine config
+local.properties
+*.iml
+.idea/
+.DS_Store
+
+# Signing material
+*.jks
+*.keystore
+!debug.keystore

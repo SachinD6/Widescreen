@@ -1,0 +1,11 @@
+<!doctype html><meta charset="utf-8">
+<style>html,body{margin:0;height:100%;background:#111;color:#eee;font:24px system-ui}
+.bar{position:fixed;top:0;left:0;right:0;padding:12px;background:#046;z-index:9}
+#inner{position:absolute;top:64px;bottom:0;left:0;right:0;overflow-y:scroll;border-top:3px solid #4CC2FF}
+p{margin:14px 0}</style>
+<div class="bar">scrollTop=<span id="v">0</span></div>
+<div id="inner"><p>row 1</p><p>row 2</p><p>row 3</p><p>row 4</p><p>row 5</p><p>row 6</p>
+<p>row 7</p><p>row 8</p><p>row 9</p><p>row 10</p><p>row 11</p><p>row 12</p>
+<p>row 13</p><p>row 14</p><p>row 15</p><p>row 16</p><p>row 17</p><p>row 18</p></div>
+<script>var i=document.getElementById('inner'),v=document.getElementById('v');
+i.addEventListener('scroll',function(){v.textContent=Math.round(i.scrollTop)});</script>
