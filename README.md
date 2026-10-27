@@ -80,6 +80,11 @@ Checked by screenshot, so not in the script: D-pad focus on every surface, page 
 the tabs panel with a live page title, cinema mode entering and leaving on `BACK`, and the DRM notice on
 netflix.com.
 
+Also run on real hardware, not just the emulator. Installed the release APK on a Motorola TV running
+Android 14 with a 1080p output and WebView 156, then loaded Wikipedia and scrolled it, played a YouTube
+video, and switched cinema mode on and off, with an empty crash buffer throughout. The TV is 32-bit ARM,
+which is fine because the app ships no native libraries.
+
 `tools/testpage/` holds single-control pages used to check the input model by hand. Serve them and open
 them from the emulator with `http://10.0.2.2:8099/<page>`:
 
@@ -124,6 +129,8 @@ hosts file, matched by suffix walk so subdomains are covered.
   Anything not in `DrmSites` map fails silently with a blank player.
 - Taps land at the centre of the screen. A page whose only control is in a corner needs a scroll first.
 - Text entry uses the system on-screen keyboard. Voice search needs a recogniser the TV may not ship.
+- Installed as a sideload with a debug key, so it cannot be updated by the Play Store and will not
+  update in place once signed with a real key.
 - Page scrolling is injected JS. A page that traps arrow keys in its own UI keeps them only while an
   input or iframe has focus.
 - No tab restore after the app is killed, no history search, no reader mode, no extensions.
